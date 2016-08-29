@@ -6,9 +6,28 @@ var path = require('path');
 var bundleDirs = {};
 var bundleFiles = {};
 var hBundle;
-var preferPackedFiles = false;
+var preferBundledFiles = false;
+var requireBundledFiles = false;
+
+function statReal(filename) {
+	var result = -1;
+	try {
+		var r = fs.statSync(filename);
+		if (r.isFile()) result = 0;
+		else if (r.isDirectory()) result = 1;
+	}
+	catch (e) {
+	}
+	return result;
+}
 
 var init = function (packedFileName) {
+	if (statReal(packedFileName + '.index') !== 0 || statReal(packedFileName + '.data') !== 0) {
+		if (requireBundledFiles)
+			throw new Error('Bundle is missing');
+		return;
+	}
+
 	fs.readFileSync(packedFileName + '.index', 'utf8').split('\r\n').forEach(function (f) {
 		if (f[0] == 'D') {
 			bundleDirs[path.resolve(f.slice(1))] = {};
@@ -58,18 +77,6 @@ function stat(filename) {
 	else if (bundleFiles[filename]) result = 0;
 	else result = statReal(filename);
 	if (cache !== null) cache.set(filename, result);
-	return result;
-}
-
-function statReal(filename) {
-	var result = -1;
-	try {
-		var r = fs.statSync(filename);
-		if (r.isFile()) result = 0;
-		else if (r.isDirectory()) result = 1;
-	}
-	catch (e) {
-	}
 	return result;
 }
 
@@ -217,7 +224,7 @@ Module._findPath = function(request, paths, isMain) {
 
 Module._extensions['.js'] = function (module, filename) {
 	var content;
-	if (preferPackedFiles)
+	if (preferBundledFiles)
 		content = readFileFromBundle(filename) || fs.readFileSync(filename);
 	else
 		content = statReal(filename) === 0 ? fs.readFileSync(filename) : readFileFromBundle(filename);
@@ -227,7 +234,7 @@ Module._extensions['.js'] = function (module, filename) {
 
 Module._extensions['.json'] = function (module, filename) {
 	var content;
-	if (preferPackedFiles)
+	if (preferBundledFiles)
 		content = readFileFromBundle(filename) || fs.readFileSync(filename);
 	else
 		content = statReal(filename) === 0 ? fs.readFileSync(filename) : readFileFromBundle(filename);
@@ -269,8 +276,12 @@ module.exports = function (options) {
 	isInited = true;
 
 	options = options || {};
-	if (options.preferPackedFiles) {
-		preferPackedFiles = true;
+	if (options.preferBundledFiles) {
+		preferBundledFiles = true;
+	}
+
+	if (options.requireBundledFiles) {
+		requireBundledFiles = true;
 	}
 
 	init(options.packedFileName || 'nmisf-bundle');
