@@ -5,9 +5,9 @@ var path = require('path');
 // read bundle
 var bundleDirs = {};
 var bundleFiles = {};
-var hBundle;
 var preferBundledFiles = false;
 var requireBundledFiles = false;
+var bundleFileName = 'nmisf-bundle';
 
 function statReal(filename) {
 	var result = -1;
@@ -21,14 +21,17 @@ function statReal(filename) {
 	return result;
 }
 
-var init = function (packedFileName) {
-	if (statReal(packedFileName + '.index') !== 0 || statReal(packedFileName + '.data') !== 0) {
+var hasBundle = true;
+
+var init = function () {
+	hasBundle = statReal(bundleFileName + '.index') === 0 && statReal(bundleFileName + '.data') === 0;
+	if (!hasBundle) {
 		if (requireBundledFiles)
 			throw new Error('Bundle is missing');
 		return;
 	}
 
-	fs.readFileSync(packedFileName + '.index', 'utf8').split('\r\n').forEach(function (f) {
+	fs.readFileSync(bundleFileName + '.index', 'utf8').split('\r\n').forEach(function (f) {
 		if (f[0] == 'D') {
 			bundleDirs[path.resolve(f.slice(1))] = {};
 		} else if (f[0] == 'F') {
@@ -42,17 +45,25 @@ var init = function (packedFileName) {
 			offset += size;
 		}
 	});
-
-	hBundle = fs.openSync(packedFileName + '.data', 'r');
 }
 
 var readFileFromBundle = function (fileName) {
-	var f = bundleFiles[fileName];
-	if (!f)
+	var hBundle = 0;
+	if (!hasBundle)
 		return undefined;
-	var buf = new Buffer(f.size);
-	fs.readSync(hBundle, buf, 0, f.size, f.offset);
-	return buf;
+	try {
+		var hBundle = fs.openSync(bundleFileName + '.data', 'r');
+		var f = bundleFiles[fileName];
+		if (!f)
+			return undefined;
+		var buf = new Buffer(f.size);
+		fs.readSync(hBundle, buf, 0, f.size, f.offset);
+		return buf;
+	}
+	finally {
+		if (hBundle)
+			fs.closeSync(hBundle);
+	}
 };
 
 // end read bundle
@@ -284,5 +295,8 @@ module.exports = function (options) {
 		requireBundledFiles = true;
 	}
 
-	init(options.packedFileName || 'nmisf-bundle');
+	if (options.bundleFileName)
+		bundleFileName = options.bundleFileName;
+
+	init();
 }
