@@ -36,7 +36,7 @@ You can add options to nmisf:
 
 ```
 require('./nmisf.js')({
-	packedFileName: 'nmisf-bundle', // bundle file-name
+	bundleFileName: 'nmisf-bundle', // bundle file-name
 	preferBundledFiles: false, // false: if real file was found, use real file. true: always use bundled file
 	requireBundledFiles: false // false: if bundle not found found, try to use real file. true: throw exception
 });
